@@ -22,7 +22,30 @@ class Cli
     process_and_output(log_file, format_choice, bitrate)
   end
 
+  def run_with_args(log_file, format_choice = nil, bitrate = nil)
+    unless File.exist?(log_file)
+      puts "Error: File '#{log_file}' not found."
+      return
+    end
+
+    format_choice ||= '1'
+    bitrate ||= 128
+
+    format_choice = normalize_format(format_choice)
+    process_and_output(log_file, format_choice, bitrate)
+  end
+
   private
+
+  def normalize_format(fmt)
+    mapping = {
+      'human-readable' => '1', 'human' => '1', '1' => '1',
+      'table' => '2', '2' => '2',
+      'csv' => '3', '3' => '3',
+      'json' => '4', '4' => '4'
+    }
+    mapping[fmt.downcase] || '1'
+  end
 
   def process_and_output(log_file, format_choice, bitrate)
     puts ''

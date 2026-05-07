@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+echo "=== CoHost Download Measurement Pipeline - Test Suite ==="
+echo ""
+
+ruby -Ilib -Itest -e '
+  Dir["test/test_*.rb"].sort.each { |f| require File.expand_path(f) }
+' "$@" -- --verbose
+
+echo ""
+echo "=== All tests completed ==="
