@@ -63,10 +63,10 @@ class TestCompliance < TestHelper
     fields[1] = '206'
     fields[3] = '5000'
     low_entry = LogEntry.new(fields)
-    entries = [low_entry, valid_entry]
+    entries = [low_entry]
     result = @compliance.process(entries)
     assert_equal 1, result[:summary][:filter_breakdown]['below_byte_threshold']
-    assert_equal 1, result[:summary][:total_compliant_downloads]
+    assert_equal 0, result[:summary][:total_compliant_downloads]
   end
 
   def test_process_dedup_happens

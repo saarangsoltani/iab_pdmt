@@ -6,6 +6,7 @@ class Deduplication
   def self.deduplicate(entries, bitrate_kbps = 128)
     grouped = entries.group_by { |e| dedup_key(e) }
     deduplicated = []
+    below_threshold = 0
 
     grouped.each do |_key, grouped_entries|
       sorted = grouped_entries.sort_by(&:timestamp)
@@ -16,7 +17,12 @@ class Deduplication
         timestamp_seconds = entry.timestamp / 1000.0
 
         if window_start.nil? || (timestamp_seconds - window_start) > WINDOW_SECONDS
-          deduplicated << merge_window_entries(window_entries, bitrate_kbps) unless window_entries.empty?
+          result = merge_window_entries(window_entries, bitrate_kbps)
+          if result.nil?
+            below_threshold += 1 unless window_entries.empty?
+          else
+            deduplicated << result
+          end
           window_start = timestamp_seconds
           window_entries = [entry]
         else
@@ -24,10 +30,15 @@ class Deduplication
         end
       end
 
-      deduplicated << merge_window_entries(window_entries, bitrate_kbps) unless window_entries.empty?
+      result = merge_window_entries(window_entries, bitrate_kbps)
+      if result.nil?
+        below_threshold += 1 unless window_entries.empty?
+      else
+        deduplicated << result
+      end
     end
 
-    deduplicated
+    [deduplicated, below_threshold]
   end
 
   def self.merge_window_entries(entries, bitrate_kbps)

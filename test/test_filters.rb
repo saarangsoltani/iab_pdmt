@@ -4,7 +4,6 @@ require_relative '../lib/filters/http_status_filter'
 require_relative '../lib/filters/bot_filter'
 require_relative '../lib/filters/apple_watch_filter'
 require_relative '../lib/filters/audio_request_filter'
-require_relative '../lib/filters/byte_threshold_filter'
 
 class TestFilters < TestHelper
   def setup
@@ -18,11 +17,6 @@ class TestFilters < TestHelper
     fields_206[1] = '206'
     fields_206[3] = '1000000'
     @entry_206_good = LogEntry.new(fields_206)
-
-    fields_206_bad = @sample_line.split('|')
-    fields_206_bad[1] = '206'
-    fields_206_bad[3] = '5000'
-    @entry_206_bad = LogEntry.new(fields_206_bad)
 
     fields_bot = @sample_line.split('|')
     fields_bot[9] = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
@@ -148,41 +142,12 @@ class TestFilters < TestHelper
     assert_equal 200, result.first.http_status
   end
 
-  def test_byte_threshold_filter_200_auto_passes
-    filter = ByteThresholdFilter.new(128)
-    result = filter.apply([@entry_200])
-    assert_equal 1, result.length
-  end
-
-  def test_byte_threshold_filter_206_good
-    filter = ByteThresholdFilter.new(128)
-    result = filter.apply([@entry_206_good])
-    assert_equal 1, result.length
-  end
-
-  def test_byte_threshold_filter_206_bad
-    filter = ByteThresholdFilter.new(128)
-    result = filter.apply([@entry_206_bad])
-    assert_equal 0, result.length
-  end
-
-  def test_byte_threshold_custom_bitrate
-    filter = ByteThresholdFilter.new(64)
-    fields = @sample_line.split('|')
-    fields[1] = '206'
-    fields[3] = '500000'
-    entry = LogEntry.new(fields)
-    result = filter.apply([entry])
-    assert_equal 1, result.length
-  end
-
   def test_filter_chain
-    chain = FilterChain.new(128)
-    entries = [@entry_200, @entry_206_good, @entry_206_bad, @entry_bot, @entry_watch]
+    chain = FilterChain.new
+    entries = [@entry_200, @entry_206_good, @entry_bot, @entry_watch]
     filtered, stats = chain.apply(entries)
     assert_equal 2, filtered.length
     assert_equal 1, stats['bot']
     assert_equal 1, stats['apple_watch']
-    assert_equal 1, stats['below_byte_threshold']
   end
 end

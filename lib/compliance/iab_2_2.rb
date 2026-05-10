@@ -10,19 +10,24 @@ class IabCompliance
   end
 
   def process(entries)
-    filter_chain = FilterChain.new(@bitrate_kbps)
+    # Step 1: Apply filters
+    filter_chain = FilterChain.new
     filtered_entries, filter_stats = filter_chain.apply(entries)
 
-    deduplicated = Deduplication.deduplicate(filtered_entries, @bitrate_kbps)
+    # Step 2: Deduplicate
+    deduplicated, below_threshold = Deduplication.deduplicate(filtered_entries, @bitrate_kbps)
+    filter_stats['below_byte_threshold'] = below_threshold
 
+    # Step 3: Generate per-episode counts
     per_episode = calculate_per_episode(deduplicated)
 
+    # Summary
     {
       summary: {
         total_raw_requests: entries.length,
         total_filtered_out: entries.length - filtered_entries.length,
         filter_breakdown: filter_stats,
-        total_compliant_downloads: deduplicated.compact.length
+        total_compliant_downloads: deduplicated.length
       },
       per_episode: per_episode,
       options_used: {
@@ -40,7 +45,7 @@ class IabCompliance
 
   def calculate_per_episode(deduplicated)
     counts = Hash.new(0)
-    deduplicated.compact.each do |entry|
+    deduplicated.each do |entry|
       counts[entry.episode_url] += 1
     end
     counts.map { |url, count| { episode_url: url, downloads: count } }

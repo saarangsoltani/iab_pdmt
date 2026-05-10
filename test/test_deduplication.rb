@@ -31,7 +31,7 @@ class TestDeduplication < TestHelper
     fields2 = fields.dup
     fields2[2] = (entry1.timestamp + 1000).to_s
     entry2 = LogEntry.new(fields2)
-    result = Deduplication.deduplicate([entry1, entry2])
+    result, = Deduplication.deduplicate([entry1, entry2])
     assert_equal 1, result.length
   end
 
@@ -42,7 +42,7 @@ class TestDeduplication < TestHelper
     fields2 = fields.dup
     fields2[2] = (entry1.timestamp + (25 * 60 * 60 * 1000)).to_s
     entry2 = LogEntry.new(fields2)
-    result = Deduplication.deduplicate([entry1, entry2])
+    result, = Deduplication.deduplicate([entry1, entry2])
     assert_equal 2, result.length
   end
 
@@ -54,7 +54,7 @@ class TestDeduplication < TestHelper
     fields2 = fields1.dup
     fields2[5] = '192.168.1.2'
     entry2 = LogEntry.new(fields2)
-    result = Deduplication.deduplicate([entry1, entry2])
+    result, = Deduplication.deduplicate([entry1, entry2])
     assert_equal 2, result.length
   end
 
@@ -65,7 +65,7 @@ class TestDeduplication < TestHelper
     entry1 = LogEntry.new(fields)
     entry2 = LogEntry.new(fields.dup.tap { |f| f[2] = (entry1.timestamp + 3_600_000).to_s })
     entry3 = LogEntry.new(fields.dup.tap { |f| f[2] = (entry1.timestamp + 7_200_000).to_s })
-    result = Deduplication.deduplicate([entry1, entry2, entry3])
+    result, = Deduplication.deduplicate([entry1, entry2, entry3])
     assert_equal 1, result.length
     assert_equal 5_000_000, result.first.bytes_sent
   end
@@ -78,9 +78,9 @@ class TestDeduplication < TestHelper
     entry1 = LogEntry.new(fields)
     entry2 = LogEntry.new(fields.dup.tap { |f| f[2] = (entry1.timestamp + 5000).to_s })
     entry3 = LogEntry.new(fields.dup.tap { |f| f[2] = (entry1.timestamp + 10_000).to_s })
-    result = Deduplication.deduplicate([entry1, entry2, entry3], 128)
-    assert_equal 1, result.length
-    assert_nil result.first
+    result, below = Deduplication.deduplicate([entry1, entry2, entry3], 128)
+    assert_equal 0, result.length
+    assert_equal 1, below
   end
 
   def test_deduplicate_multiple_206_meets_threshold
@@ -91,9 +91,39 @@ class TestDeduplication < TestHelper
     entry1 = LogEntry.new(fields)
     entry2 = LogEntry.new(fields.dup.tap { |f| f[2] = (entry1.timestamp + 5000).to_s })
     entry3 = LogEntry.new(fields.dup.tap { |f| f[2] = (entry1.timestamp + 10_000).to_s })
-    result = Deduplication.deduplicate([entry1, entry2, entry3], 128)
+    result, below = Deduplication.deduplicate([entry1, entry2, entry3], 128)
     assert_equal 1, result.length
     refute_nil result.first
     assert_equal 350_000, result.first.bytes_sent
+    assert_equal 0, below
+  end
+
+  def test_deduplicate_single_entry_below_threshold
+    fields = @sample_line.split('|')
+    fields[1] = '206'
+    fields[3] = '5000'
+    entry = LogEntry.new(fields)
+    result, below = Deduplication.deduplicate([entry], 128)
+    assert_equal 0, result.length
+    assert_equal 1, below
+  end
+
+  def test_deduplicate_tracks_below_threshold_across_groups
+    fields = @sample_line.split('|')
+    fields[1] = '206'
+
+    fields1 = fields.dup
+    fields1[3] = '5000'
+    fields1[5] = '192.168.1.1'
+    entry1 = LogEntry.new(fields1)
+
+    fields2 = fields.dup
+    fields2[3] = '5000'
+    fields2[5] = '192.168.1.2'
+    entry2 = LogEntry.new(fields2)
+
+    result, below = Deduplication.deduplicate([entry1, entry2], 128)
+    assert_equal 0, result.length
+    assert_equal 2, below
   end
 end
